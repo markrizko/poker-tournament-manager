@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Poker Tournament Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- WELCOME / SELECTION SCREEN -->
+    <div id="welcome-screen" class="screen active">
+      <div class="welcome-container">
+        <header class="welcome-header">
+          <div class="logo-mark">♦♣♥♠</div>
+          <h1>Antigravity Poker</h1>
+          <p>Real-Time Tournament Manager</p>
+        </header>
+
+        <main class="welcome-grid">
+          <!-- TV / Display Section -->
+          <div class="welcome-card role-card" id="btn-select-tv">
+            <div class="card-icon">📺</div>
+            <h2>TV Timer Display</h2>
+            <p>Launch the large-format dashboard optimized for projector or TV screens.</p>
+            <button class="btn btn-primary">Open Big Screen</button>
+          </div>
+
+          <!-- Phone / Admin Section -->
+          <div class="welcome-card role-card" id="btn-select-admin">
+            <div class="card-icon">📱</div>
+            <h2>Mobile Admin Console</h2>
+            <p>Manage clock, players, rebuys, and tournament payout configurations.</p>
+            <button class="btn btn-secondary">Open Admin Panel</button>
+          </div>
+
+          <!-- Sync QR Code Card -->
+          <div class="welcome-card qr-card">
+            <h2>Connect Another Device</h2>
+            <p>Scan this QR code with your phone/tablet on the same Wi-Fi to manage this tournament remotely.</p>
+            <div class="qr-wrapper">
+              <div id="qr-loading" class="spinner"></div>
+              <img id="pairing-qr" src="" alt="Pairing QR Code" style="display: none;">
+            </div>
+            <div class="connection-details">
+              <span class="badge">Local LAN URLs:</span>
+              <ul id="lan-url-list">
+                <!-- Dynamically populated -->
+              </ul>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- TV SCREEN VIEW -->
+    <div id="tv-screen" class="screen">
+      <div class="tv-container">
+        <!-- TV Header -->
+        <header class="tv-header">
+          <div class="tv-brand">♦♣♥♠ Antigravity Poker</div>
+          <div class="tv-level-title" id="tv-level-label">Level 1</div>
+          <button id="btn-tv-fullscreen" class="btn btn-icon btn-dark-trans" title="Toggle Fullscreen">⛶</button>
+        </header>
+
+        <div class="tv-layout">
+          <!-- Left Column: Big Timer & Blinds -->
+          <div class="tv-col-left">
+            <!-- Big Timer Card -->
+            <div class="tv-card timer-card">
+              <div id="tv-timer-display" class="timer-digits">15:00</div>
+              <div class="progress-bar-container">
+                <div id="tv-timer-progress" class="progress-bar" style="width: 100%;"></div>
+              </div>
+              <div class="timer-status-indicator" id="tv-timer-status">Paused</div>
+            </div>
+
+            <!-- Blinds Info Grid -->
+            <div class="tv-blinds-grid">
+              <div class="tv-card blinds-card current-blinds">
+                <div class="tv-card-label">CURRENT BLINDS</div>
+                <div class="tv-blinds-value" id="tv-current-blinds">25 / 50</div>
+                <div class="tv-ante-value" id="tv-current-ante">No Ante</div>
+              </div>
+              <div class="tv-card blinds-card next-blinds">
+                <div class="tv-card-label">UPCOMING BLINDS</div>
+                <div class="tv-blinds-value" id="tv-next-blinds">50 / 100</div>
+                <div class="tv-ante-value" id="tv-next-ante">Ante: 100</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Stats & Tables -->
+          <div class="tv-col-right">
+            <!-- Top stats row -->
+            <div class="tv-stats-grid">
+              <div class="tv-card stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-info">
+                  <div class="stat-val" id="tv-stat-players">0 / 0</div>
+                  <div class="stat-lbl">Players / Entries</div>
+                </div>
+              </div>
+              <div class="tv-card stat-card">
+                <div class="stat-icon">💰</div>
+                <div class="stat-info">
+                  <div class="stat-val" id="tv-stat-prize-pool">$0</div>
+                  <div class="stat-lbl">Prize Pool</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Middle Split Panel -->
+            <div class="tv-split-panel">
+              <!-- Chip Color Denominations -->
+              <div class="tv-card split-card chip-colors-card">
+                <h3>Chip Values</h3>
+                <div class="chip-row-list" id="tv-chip-colors-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
+              <!-- Payout Table -->
+              <div class="tv-card split-card payouts-card">
+                <h3>Payout Table</h3>
+                <div class="payout-row-list" id="tv-payouts-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Scrolling Text / History -->
+            <div class="tv-card ticker-card">
+              <div class="ticker-content" id="tv-ticker-message">
+                Welcome to the Antigravity Poker Tournament! | Please log buy-ins and rebuys at the admin console.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN SCREEN VIEW -->
+    <div id="admin-screen" class="screen">
+      <div class="admin-container">
+        <!-- Admin Header -->
+        <header class="admin-header">
+          <div class="admin-brand">
+            <button id="btn-admin-home" class="btn btn-icon btn-dark-trans">🏠</button>
+            <span>Admin Console</span>
+          </div>
+          <div class="connection-status badge connected" id="ws-status-badge">Connected</div>
+        </header>
+
+        <!-- Timer Controls Board -->
+        <section class="admin-timer-panel">
+          <div class="admin-level-info">
+            <span id="admin-current-level-label" class="level-lbl">Level 1</span>
+            <span id="admin-current-blinds" class="blinds-lbl">25 / 50</span>
+            <span id="admin-current-ante" class="ante-lbl">(No Ante)</span>
+          </div>
+          
+          <div class="admin-clock-wrapper">
+            <div id="admin-timer-display" class="admin-clock-digits">15:00</div>
+            <div class="clock-quick-actions">
+              <button id="btn-adjust-minus-1" class="btn btn-xs btn-outline">-1m</button>
+              <button id="btn-adjust-plus-1" class="btn btn-xs btn-outline">+1m</button>
+            </div>
+          </div>
+
+          <div class="admin-timer-controls">
+            <button id="btn-admin-prev" class="btn btn-dark-trans" title="Previous Level">⏮</button>
+            <button id="btn-admin-play" class="btn btn-success btn-large" title="Start Timer">▶ Play</button>
+            <button id="btn-admin-pause" class="btn btn-warning btn-large" style="display:none;" title="Pause Timer">⏸ Pause</button>
+            <button id="btn-admin-reset" class="btn btn-dark-trans" title="Reset Level Timer">↺</button>
+            <button id="btn-admin-next" class="btn btn-dark-trans" title="Next Level">⏭</button>
+          </div>
+        </section>
+
+        <!-- Navigation Tabs -->
+        <nav class="admin-tabs">
+          <button class="tab-btn active" data-tab="tab-players">Players (<span id="admin-players-count">0</span>)</button>
+          <button class="tab-btn" data-tab="tab-blinds">Blinds</button>
+          <button class="tab-btn" data-tab="tab-payouts">Payouts</button>
+          <button class="tab-btn" data-tab="tab-settings">Settings</button>
+        </nav>
+
+        <!-- Tab Contents -->
+        <main class="admin-tab-content">
+          <!-- PLAYERS TAB -->
+          <div id="tab-players" class="tab-panel active">
+            <!-- Add Player Form -->
+            <form id="add-player-form" class="add-player-bar">
+              <input type="text" id="input-player-name" placeholder="Enter player name..." autocomplete="off" required>
+              <button type="submit" class="btn btn-primary">+ Add</button>
+            </form>
+
+            <div class="quick-stats-row">
+              <div class="qs-box">
+                <span class="qs-val" id="admin-qs-remaining">0 / 0</span>
+                <span class="qs-lbl">Left / Entries</span>
+              </div>
+              <div class="qs-box">
+                <span class="qs-val" id="admin-qs-prize">$0</span>
+                <span class="qs-lbl">Prize Pool</span>
+              </div>
+              <div class="qs-box">
+                <span class="qs-val" id="admin-qs-avg">0</span>
+                <span class="qs-lbl">Avg Stack</span>
+              </div>
+            </div>
+
+            <!-- Player List -->
+            <div class="player-list-container">
+              <div class="player-list-header">
+                <span>Player</span>
+                <span>Actions</span>
+              </div>
+              <div class="player-list-items" id="player-list-items">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+          <!-- BLINDS TAB -->
+          <div id="tab-blinds" class="tab-panel">
+            <!-- Blind Structure Calculator Panel -->
+            <div class="admin-card calc-card">
+              <h3>Blinds & Levels Calculator</h3>
+              <p class="card-desc">Generate a mathematically balanced schedule to fit your target playtime.</p>
+              
+              <div class="checkbox-group" style="margin-bottom: 15px;">
+                <input type="checkbox" id="calc-auto-chips" checked>
+                <label for="calc-auto-chips"><strong>Auto-calculate stack size & chip breakouts</strong> from inventory</label>
+              </div>
+
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="calc-playtime">Target Playtime (mins)</label>
+                  <input type="number" id="calc-playtime" value="180" min="30" max="600">
+                </div>
+                <div class="form-group">
+                  <label for="calc-level-dur">Level Duration (mins)</label>
+                  <input type="number" id="calc-level-dur" value="15" min="5" max="60">
+                </div>
+                <div class="form-group" id="group-calc-starting-stack">
+                  <label for="calc-starting-stack">Starting Stack</label>
+                  <input type="number" id="calc-starting-stack" value="500" step="100">
+                </div>
+                <div class="form-group">
+                  <label for="calc-expected-rebuys">Expected Rebuys (avg/player)</label>
+                  <input type="number" id="calc-expected-rebuys" value="0.5" step="0.1" min="0" max="5">
+                </div>
+                <div class="form-group" id="group-calc-smallest-chip">
+                  <label for="calc-smallest-chip">Smallest Chip Value</label>
+                  <select id="calc-smallest-chip">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="calc-end-bb-pct">End BB % of Chips</label>
+                  <input type="number" id="calc-end-bb-pct" value="6" min="3" max="15" step="0.5">
+                </div>
+              </div>
+
+              <div class="checkbox-group">
+                <input type="checkbox" id="calc-add-breaks" checked>
+                <label for="calc-add-breaks">Include breaks in structure</label>
+              </div>
+
+              <div class="form-grid break-options" id="calc-break-options">
+                <div class="form-group">
+                  <label for="calc-break-interval">Break Every (levels)</label>
+                  <input type="number" id="calc-break-interval" value="4" min="1" max="10">
+                </div>
+                <div class="form-group">
+                  <label for="calc-break-dur">Break Duration (mins)</label>
+                  <input type="number" id="calc-break-dur" value="10" min="5" max="60">
+                </div>
+              </div>
+
+              <button type="button" id="btn-calc-generate" class="btn btn-primary btn-block">Generate & Apply Structure</button>
+
+              <div id="calc-breakout-card" style="display: none; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+                <h4 style="font-family: var(--font-family-display); font-size: 1.05rem; margin-bottom: 0.5rem;">Recommended Stack Breakout</h4>
+                <div id="calc-breakout-details">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Current Blind Sequence -->
+            <div class="admin-card">
+              <div class="card-header-actions">
+                <h3>Active Blind Structure</h3>
+                <button id="btn-regen-default-blinds" class="btn btn-xs btn-outline">Reset to Defaults</button>
+              </div>
+              <div class="levels-table-container">
+                <table class="levels-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>SB</th>
+                      <th>BB</th>
+                      <th>Ante</th>
+                      <th>Dur</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-levels-list">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+              <button id="btn-add-level-row" class="btn btn-xs btn-success" style="margin-top: 10px;">+ Add Level</button>
+            </div>
+          </div>
+
+          <!-- PAYOUTS TAB -->
+          <div id="tab-payouts" class="tab-panel">
+            <div class="admin-card">
+              <h3>Payout Configurations</h3>
+              <p class="card-desc">Set the number of paid players and adjust ratios. Sum must be exactly 100%.</p>
+
+              <div class="form-group" style="max-width: 200px; margin-bottom: 20px;">
+                <label for="payout-places-paid">Places Paid</label>
+                <input type="number" id="payout-places-paid" value="3" min="1" max="10">
+              </div>
+
+              <div class="payout-balance-banner" id="payout-balance-banner">
+                <span id="payout-sum-badge" class="badge bg-success">Sum: 100%</span>
+                <button id="btn-payout-autobalance" class="btn btn-xs btn-primary">Auto-Balance</button>
+              </div>
+
+              <div class="payout-editor-list" id="payout-editor-list">
+                <!-- Dynamically populated with sliders/inputs -->
+              </div>
+            </div>
+
+            <div class="admin-card">
+              <h3>Estimated Dollar Payouts</h3>
+              <div class="payout-values-list" id="admin-payout-values">
+                <!-- Dynamically populated with dollar values -->
+              </div>
+            </div>
+          </div>
+
+          <!-- SETTINGS TAB -->
+          <div id="tab-settings" class="tab-panel">
+            <!-- Tournament Settings -->
+            <div class="admin-card">
+              <h3>Tournament Settings</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label for="settings-starting-stack">Starting Stack Chips</label>
+                  <input type="number" id="settings-starting-stack" value="10000" step="500">
+                </div>
+                <div class="form-group">
+                  <label for="settings-buyin">Buy-in Amount ($)</label>
+                  <input type="number" id="settings-buyin" value="20" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="settings-rebuy">Rebuy Amount ($)</label>
+                  <input type="number" id="settings-rebuy" value="20" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="settings-addon">Add-on Amount ($)</label>
+                  <input type="number" id="settings-addon" value="20" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="settings-bba-start">BBA Starts Level</label>
+                  <input type="number" id="settings-bba-start" value="4" min="1">
+                </div>
+                <div class="form-group">
+                  <label for="settings-rebuy-cutoff">Rebuys Allowed Until Level</label>
+                  <input type="number" id="settings-rebuy-cutoff" value="4" min="1">
+                </div>
+                <div class="form-group">
+                  <label for="settings-auto-advance">Auto-Advance Levels</label>
+                  <select id="settings-auto-advance">
+                    <option value="true">Yes (Beep & Next Level)</option>
+                    <option value="false">No (Pause on Level end)</option>
+                  </select>
+                </div>
+              </div>
+              <button id="btn-save-settings" class="btn btn-primary" style="margin-top: 15px;">Save Settings</button>
+            </div>
+
+            <!-- Chip Colors settings -->
+            <div class="admin-card">
+              <h3>Chip Colors Configuration</h3>
+              <div class="chip-settings-list" id="chip-settings-list">
+                <!-- Dynamically populated -->
+              </div>
+              <button id="btn-save-chip-colors" class="btn btn-primary" style="margin-top: 15px;">Save Chip Colors</button>
+            </div>
+
+            <!-- Reset Panel -->
+            <div class="admin-card border-danger">
+              <h3 class="text-danger">Danger Zone</h3>
+              <p class="card-desc">Irreversible tournament controls.</p>
+              <button id="btn-reset-tournament" class="btn btn-danger btn-block">Reset Tournament (Clear All)</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio elements for beeps -->
+  <div id="audio-placeholder"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
