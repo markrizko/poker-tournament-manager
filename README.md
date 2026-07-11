@@ -11,21 +11,34 @@ Built with **Node.js, Express, WebSockets (ws)**, and custom **Vanilla CSS**, th
 ### 📺 High-Visibility TV Dashboard View
 * **Extra Large Timer Display**: Large countdown clock optimized for readability on projectors or large TV displays.
 * **Widescreen Balanced Layout**: Designed in a premium **Obsidian Dark** aesthetic with neon emerald and cyan highlights.
-* **Instant visual alerts**: Clock digits turn pulsing red when time is low (< 30s) and flash green on level changes.
-* **Side-by-Side Live widgets**: Displays current/upcoming blinds, payout structures, chip value colors, active player counts, total prize pool, and a scrolling bottom status ticker.
+* **Instant Visual Alerts**: Clock digits turn pulsing red when time is low (< 30s) and flash green on level changes.
+* **Side-by-Side Live Widgets**: Displays current/upcoming blinds, payout structures, chip value colors, active player counts, total prize pool, and a scrolling bottom status ticker.
 * **Zero Scrolling**: Auto-fits laptop and TV screens with responsive grid styling and absolute sizing.
+
+### 🧙‍♂️ Interactive Game Setup Wizard
+* **Guided Step-by-Step Flow**: Initialize new tournaments cleanly from scratch before launching the live dashboard:
+  1. **Stakes & Buy-In**: Configure buy-in, rebuy, add-on amounts, estimated player counts, and expected rebuys.
+  2. **Chip Configuration**: Input your physical chip case inventory, set desired starting big blinds, and toggle between automated solver calculation and manual sizing. Includes a live starting stack breakout recommendation preview.
+  3. **Blinds Schedule**: Input target playtime, level durations, and end-game BB percentages to generate a customized blind schedule.
+  4. **Payouts & Policies**: Define big blind ante (BBA) triggers, rebuy cutoff thresholds, auto-advance behaviors, and paid places with normalizing sliders.
+* **Launch Tournament**: Finalize configuration to lock initial settings, build the blind structure, and enter the active dashboard.
+
+### 🪙 Smart Chip Inventory Solver
+* **Starting Big Blinds (BBs) Syncing**: Configure target starting BBs (e.g., 100 BBs).
+  * *Auto-Calculate Mode*: The solver automatically targets a stack size of exactly `BBs * 2 * Smallest Chip` and finds the optimal breakout.
+  * *Manual Mode*: Modifying Starting BBs, Starting Stack, or Smallest Chip dynamically recalculates and syncs the other values instantly.
+* **Denomination Gap Penalty**: The solver scores chip allocations to guarantee consecutive chip values (preventing weird value gaps like skipping the 50-chip in favor of 100-chips).
+* **Prioritize Small Chips**: Allocates starting stacks with as many small chips as possible, allowing players better bet sizing and reducing the need for constant coloring up or change exchanges.
+* **Relaxed Rebuy Restrictions**: Solves stack configurations ignoring strict rebuy bank reserves since the bank can use larger color-up chips for rebuys.
 
 ### 📱 Real-Time Mobile Admin Console
 * **Instant QR Pairing**: Connect another tablet or phone to the same Wi-Fi network and scan the pairing QR code to control the game instantly.
 * **Central WebSocket Clock**: The clock runs on the central server. If the admin's phone goes to sleep, the TV projector screen continues counting down accurately, and the admin panel resynchronizes immediately upon wake.
 * **Interactive Player Manager**: Add players, record entry buy-ins, track individual rebuys/add-ons, and record busts. Busting players can be revived instantly by registering a rebuy.
-* **Intelligent Blinds Calculator**: Recalculate blinds dynamically based on target playtime, level duration, and available chip inventory.
-* **Flexible Payouts Engine**: Choose the number of paid places (1-10) and adjust weights with sliders or text inputs. Includes an **Auto-Balance** button to automatically normalize ratios to 100% using standard curves.
-
-### 🪙 Dynamic Chip Inventory Management
-* **Breakout Solver**: Input your exact chip inventory quantities and values. The app automatically calculates the ideal starting stack size, recommended denominations, and exactly how many chips of each color to cut out for each player.
-* **Real-time Color Sync**: Typing standard color names (e.g. Pink, Purple, Lavender, Red) in Settings auto-fills the color picker and preview pills instantly.
-* **Dynamic lookups**: TV display resolves colors dynamically from Settings to prevent desynchronization.
+* **Settings Locking**: Once a game is running, all configuration parameters (buy-ins, starting stacks, starting BBs, and active chip breakouts) are safely locked read-only.
+  * **Live Settings**: Allows live adjustment only for auto-advance, rebuy cutoff level, and BBA starts level.
+  * **Blinds Calculator Protection**: The blinds calculator is automatically hidden in the Blinds tab once the game is live to prevent accidental schedule overwrites.
+* **Flexible Payouts Engine**: normalizes payout ratios to 100% using standard curves with an **Auto-Balance** utility.
 
 ### 🔊 Native Web Audio Chime Alerts
 * **Offline Synthesizer**: Uses the browser's native **Web Audio API** to synthesize a three-tone rising chime followed by a resonant bell gong on level transition (100% offline, zero lag or autoplay blockages).
@@ -68,6 +81,7 @@ Poker Tournament Manager Server started successfully!
 Local Access: http://localhost:3000
 Network Access (Use your phone/tablet):
   http://192.168.1.202:3000
+  http://10.5.0.2:3000
 =======================================================
 ```
 
