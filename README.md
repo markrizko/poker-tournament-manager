@@ -62,8 +62,8 @@ Make sure you have Node.js (version 16 or higher) installed on your system.
 ### 1. Setup the Project
 Clone the repository and install the dependencies:
 ```bash
-git clone https://github.com/markrizko/pt-manager.git
-cd pt-manager
+git clone git@github.com:markrizko/poker-tournament-manager.git
+cd poker-tournament-manager
 npm install
 ```
 
