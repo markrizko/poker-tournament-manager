@@ -1,6 +1,6 @@
-# ♦♣♥♠ Antigravity Poker: Real-Time Tournament Manager
+# ♦♣♥♠ LevelUp Poker: Real-Time Tournament Manager
 
-Antigravity Poker is a premium, multi-platform, real-time poker tournament manager designed for home games and local club tournaments. It features a dual-device synchronization model that allows you to run a full-screen tournament dashboard on a projector or TV screen while managing the game (clock, rebuys, payouts, and players) remotely from your mobile phone.
+LevelUp Poker is a premium, multi-platform, real-time poker tournament manager designed for home games and local club tournaments. It features a dual-device synchronization model that allows you to run a full-screen tournament dashboard on a projector or TV screen while managing the game (clock, rebuys, payouts, and players) remotely from your mobile phone.
 
 Built with **Node.js, Express, WebSockets (ws)**, and custom **Vanilla CSS**, this application runs entirely locally and offline, ensuring zero clock drift, latency-free updates, and zero external dependencies.
 
