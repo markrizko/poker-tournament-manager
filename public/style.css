@@ -40,7 +40,7 @@
 }
 
 body {
-  background-color: var(--bg-color);
+  background: radial-gradient(circle at 50% 30%, #0c1833 0%, #050811 100%);
   color: var(--text-primary);
   font-family: var(--font-family-sans);
   font-size: 16px;
@@ -219,7 +219,24 @@ body {
 
 .welcome-header {
   text-align: center;
-  margin-bottom: 4rem;
+  margin-bottom: 2rem;
+}
+
+.welcome-logo {
+  max-width: 320px;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  filter: drop-shadow(0 0 25px rgba(0, 210, 255, 0.15));
+}
+
+.header-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(0, 210, 255, 0.25));
 }
 
 .logo-mark {
