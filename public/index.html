@@ -56,6 +56,228 @@
       </div>
     </div>
 
+    <!-- NEW GAME SETUP SCREEN -->
+    <div id="setup-screen" class="screen">
+      <div class="setup-container">
+        <header class="setup-header">
+          <button id="btn-setup-home" class="btn btn-icon btn-dark-trans">🏠</button>
+          <div class="logo-mark">♦♣♥♠</div>
+          <h1>New Game Setup</h1>
+          <p>Configure and launch a new tournament</p>
+        </header>
+
+        <div class="setup-wizard-card">
+          <!-- Wizard Steps Indicator -->
+          <div class="wizard-steps">
+            <div class="wizard-step active" data-step="1">
+              <span class="step-num">1</span>
+              <span class="step-label">Stakes</span>
+            </div>
+            <div class="wizard-step" data-step="2">
+              <span class="step-num">2</span>
+              <span class="step-label">Chips</span>
+            </div>
+            <div class="wizard-step" data-step="3">
+              <span class="step-num">3</span>
+              <span class="step-label">Blinds</span>
+            </div>
+            <div class="wizard-step" data-step="4">
+              <span class="step-num">4</span>
+              <span class="step-label">Payouts</span>
+            </div>
+          </div>
+
+          <!-- Wizard Step Panels -->
+          <!-- STEP 1: Stakes & Players -->
+          <div class="wizard-panel active" id="wizard-panel-1">
+            <h3>Step 1: Stakes & Basic Info</h3>
+            <p class="panel-desc">Define the buy-in rules, initial estimated players, and expected rebuys.</p>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="setup-buyin">Buy-in Amount ($)</label>
+                <input type="number" id="setup-buyin" value="20" min="0">
+              </div>
+              <div class="form-group">
+                <label for="setup-rebuy">Rebuy Amount ($)</label>
+                <input type="number" id="setup-rebuy" value="20" min="0">
+              </div>
+              <div class="form-group">
+                <label for="setup-addon">Add-on Amount ($)</label>
+                <input type="number" id="setup-addon" value="20" min="0">
+              </div>
+              <div class="form-group">
+                <label for="setup-est-players">Estimated Players</label>
+                <input type="number" id="setup-est-players" value="8" min="2" max="100">
+              </div>
+              <div class="form-group">
+                <label for="setup-expected-rebuys">Expected Rebuys (avg/player)</label>
+                <input type="number" id="setup-expected-rebuys" value="0.5" step="0.1" min="0" max="5">
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: Chip Configuration -->
+          <div class="wizard-panel" id="wizard-panel-2">
+            <h3>Step 2: Chip Inventory & Colors</h3>
+            <p class="panel-desc">Configure the colors and quantities of chips in your physical case. The app will calculate the optimal player starting stack and breakout based on your inventory.</p>
+            
+            <div class="form-grid" style="margin-bottom: 20px;">
+              <div class="form-group">
+                <label for="setup-starting-bbs">Starting Big Blinds (BBs)</label>
+                <input type="number" id="setup-starting-bbs" value="100" min="20" max="1000" step="10">
+              </div>
+              <div class="form-group" style="display: flex; align-items: center; margin-top: 25px;">
+                <input type="checkbox" id="setup-auto-chips" checked style="width: auto; margin-right: 8px;">
+                <label for="setup-auto-chips" style="margin-bottom: 0; cursor: pointer;"><strong>Auto-calculate stack size & breakouts</strong></label>
+              </div>
+            </div>
+
+            <div class="form-grid" id="setup-manual-chips-group" style="display: none;">
+              <div class="form-group">
+                <label for="setup-starting-stack">Starting Stack Chips</label>
+                <input type="number" id="setup-starting-stack" value="10000" step="100">
+              </div>
+              <div class="form-group" id="setup-manual-smallest-chip-group">
+                <label for="setup-smallest-chip">Smallest Chip Value</label>
+                <select id="setup-smallest-chip">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="chip-settings-container">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h4 style="margin: 0;">Physical Chip Inventory</h4>
+                <button type="button" id="btn-save-setup-inventory" class="btn btn-xs btn-success" style="font-weight: bold; padding: 4px 10px; border-radius: 4px;">💾 Save Inventory</button>
+              </div>
+              <div class="chip-settings-list" id="setup-chip-inventory-list">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Dynamic Solver Results Preview -->
+            <div class="setup-breakout-preview-card" id="setup-breakout-preview" style="display: none;">
+              <h4>Recommended Starting Stack</h4>
+              <div id="setup-breakout-details">
+                <!-- Dynamically populated starting stack size & counts -->
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: Blinds Calculator -->
+          <div class="wizard-panel" id="wizard-panel-3">
+            <h3>Step 3: Blinds Schedule</h3>
+            <p class="panel-desc">Generate a schedule with a target playing time and level durations.</p>
+            
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="setup-playtime">Target Playtime (mins)</label>
+                <input type="number" id="setup-playtime" value="180" min="30" max="600">
+              </div>
+              <div class="form-group">
+                <label for="setup-level-dur">Level Duration (mins)</label>
+                <input type="number" id="setup-level-dur" value="15" min="5" max="60">
+              </div>
+              <div class="form-group">
+                <label for="setup-end-bb-pct">End BB % of Chips</label>
+                <input type="number" id="setup-end-bb-pct" value="6" min="3" max="15" step="0.5">
+              </div>
+            </div>
+
+            <div class="checkbox-group" style="margin-top: 15px; margin-bottom: 10px;">
+              <input type="checkbox" id="setup-add-breaks" checked>
+              <label for="setup-add-breaks">Include breaks in structure</label>
+            </div>
+
+            <div class="form-grid" id="setup-break-options-group">
+              <div class="form-group">
+                <label for="setup-break-interval">Break Every (levels)</label>
+                <input type="number" id="setup-break-interval" value="4" min="1" max="10">
+              </div>
+              <div class="form-group">
+                <label for="setup-break-dur">Break Duration (mins)</label>
+                <input type="number" id="setup-break-dur" value="10" min="5" max="60">
+              </div>
+            </div>
+
+            <!-- Level Schedule Preview -->
+            <div class="setup-levels-preview-card" style="margin-top: 20px;">
+              <h4>Generated Level Structure Preview</h4>
+              <div class="levels-table-container setup-preview-table-container">
+                <table class="levels-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>SB</th>
+                      <th>BB</th>
+                      <th>Ante</th>
+                      <th>Dur</th>
+                    </tr>
+                  </thead>
+                  <tbody id="setup-levels-preview-list">
+                    <!-- Dynamically populated -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 4: Payouts & Rules -->
+          <div class="wizard-panel" id="wizard-panel-4">
+            <h3>Step 4: Payouts & Policies</h3>
+            <p class="panel-desc">Set administrative limits and configure how the prize pool will be distributed.</p>
+            
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="setup-bba-start">BBA Starts Level</label>
+                <input type="number" id="setup-bba-start" value="4" min="1">
+              </div>
+              <div class="form-group">
+                <label for="setup-rebuy-cutoff">Rebuys Allowed Until Level</label>
+                <input type="number" id="setup-rebuy-cutoff" value="4" min="1">
+              </div>
+              <div class="form-group">
+                <label for="setup-auto-advance">Auto-Advance Levels</label>
+                <select id="setup-auto-advance">
+                  <option value="true">Yes (Beep & Next Level)</option>
+                  <option value="false">No (Pause on Level end)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="setup-payouts-config" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border-color);">
+              <h4>Initial Payout Configuration</h4>
+              <div class="form-group" style="max-width: 200px; margin-bottom: 15px;">
+                <label for="setup-places-paid">Places Paid</label>
+                <input type="number" id="setup-places-paid" value="3" min="1" max="10">
+              </div>
+
+              <div class="payout-balance-banner" style="margin-bottom: 15px;">
+                <span id="setup-payout-sum-badge" class="badge bg-success">Sum: 100%</span>
+                <button type="button" id="btn-setup-autobalance" class="btn btn-xs btn-primary">Auto-Balance</button>
+              </div>
+
+              <div class="payout-editor-list" id="setup-payout-editor-list">
+                <!-- Sliders for places paid -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Wizard Footer Controls -->
+          <div class="wizard-footer">
+            <button type="button" id="btn-wizard-prev" class="btn btn-secondary" style="visibility: hidden;">Back</button>
+            <button type="button" id="btn-wizard-next" class="btn btn-primary">Next</button>
+            <button type="button" id="btn-wizard-launch" class="btn btn-success" style="display: none;">Launch Tournament 🚀</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- TV SCREEN VIEW -->
     <div id="tv-screen" class="screen">
       <div class="tv-container">
@@ -213,6 +435,17 @@
               </div>
             </div>
 
+            <!-- Active Chip Breakout Quick Reference -->
+            <div class="active-breakout-card" id="admin-players-breakout-card" style="display: none;">
+              <div class="breakout-header">
+                <span class="breakout-title">Starting Stack (1 Buy-in) Breakout</span>
+                <span class="breakout-stack-size" id="admin-players-breakout-stack">1,000 chips</span>
+              </div>
+              <div class="breakout-chips-row" id="admin-players-breakout-chips">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
             <!-- Player List -->
             <div class="player-list-container">
               <div class="player-list-header">
@@ -228,7 +461,7 @@
           <!-- BLINDS TAB -->
           <div id="tab-blinds" class="tab-panel">
             <!-- Blind Structure Calculator Panel -->
-            <div class="admin-card calc-card">
+            <div class="admin-card calc-card" id="admin-blinds-calculator">
               <h3>Blinds & Levels Calculator</h3>
               <p class="card-desc">Generate a mathematically balanced schedule to fit your target playtime.</p>
               
@@ -355,26 +588,11 @@
 
           <!-- SETTINGS TAB -->
           <div id="tab-settings" class="tab-panel">
-            <!-- Tournament Settings -->
+            <!-- Live Tournament Settings -->
             <div class="admin-card">
-              <h3>Tournament Settings</h3>
+              <h3 class="settings-section-title"><span class="badge bg-success">Live Settings</span> Tournament Parameters</h3>
+              <p class="card-desc">These settings can be updated while the game is running.</p>
               <div class="form-grid">
-                <div class="form-group">
-                  <label for="settings-starting-stack">Starting Stack Chips</label>
-                  <input type="number" id="settings-starting-stack" value="10000" step="500">
-                </div>
-                <div class="form-group">
-                  <label for="settings-buyin">Buy-in Amount ($)</label>
-                  <input type="number" id="settings-buyin" value="20" min="0">
-                </div>
-                <div class="form-group">
-                  <label for="settings-rebuy">Rebuy Amount ($)</label>
-                  <input type="number" id="settings-rebuy" value="20" min="0">
-                </div>
-                <div class="form-group">
-                  <label for="settings-addon">Add-on Amount ($)</label>
-                  <input type="number" id="settings-addon" value="20" min="0">
-                </div>
                 <div class="form-group">
                   <label for="settings-bba-start">BBA Starts Level</label>
                   <input type="number" id="settings-bba-start" value="4" min="1">
@@ -391,23 +609,51 @@
                   </select>
                 </div>
               </div>
-              <button id="btn-save-settings" class="btn btn-primary" style="margin-top: 15px;">Save Settings</button>
+              <button id="btn-save-settings" class="btn btn-primary" style="margin-top: 15px;">Save Live Settings</button>
             </div>
 
-            <!-- Chip Colors settings -->
-            <div class="admin-card">
-              <h3>Chip Colors Configuration</h3>
-              <div class="chip-settings-list" id="chip-settings-list">
-                <!-- Dynamically populated -->
+            <!-- Locked Initial Parameters -->
+            <div class="admin-card locked-card">
+              <h3 class="settings-section-title"><span class="badge bg-danger">Initial Setup</span> Locked Parameters</h3>
+              <p class="card-desc">These options were configured at setup and cannot be changed live.</p>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Starting Stack Chips</label>
+                  <input type="text" id="settings-starting-stack" disabled class="input-locked">
+                </div>
+                <div class="form-group">
+                  <label>Starting Big Blinds (BBs)</label>
+                  <input type="text" id="settings-starting-bbs" disabled class="input-locked">
+                </div>
+                <div class="form-group">
+                  <label>Buy-in Amount ($)</label>
+                  <input type="text" id="settings-buyin" disabled class="input-locked">
+                </div>
+                <div class="form-group">
+                  <label>Rebuy Amount ($)</label>
+                  <input type="text" id="settings-rebuy" disabled class="input-locked">
+                </div>
+                <div class="form-group">
+                  <label>Add-on Amount ($)</label>
+                  <input type="text" id="settings-addon" disabled class="input-locked">
+                </div>
               </div>
-              <button id="btn-save-chip-colors" class="btn btn-primary" style="margin-top: 15px;">Save Chip Colors</button>
             </div>
 
-            <!-- Reset Panel -->
+            <!-- Locked Chip Color settings -->
+            <div class="admin-card locked-card">
+              <h3 class="settings-section-title"><span class="badge bg-danger">Active Chips</span> Breakout & Quantities</h3>
+              <p class="card-desc">Optimal breakout generated by the solver from available inventory.</p>
+              <div class="chip-settings-list locked-list" id="chip-settings-list">
+                <!-- Dynamically populated read-only list -->
+              </div>
+            </div>
+
+            <!-- Danger Zone reset -->
             <div class="admin-card border-danger">
               <h3 class="text-danger">Danger Zone</h3>
-              <p class="card-desc">Irreversible tournament controls.</p>
-              <button id="btn-reset-tournament" class="btn btn-danger btn-block">Reset Tournament (Clear All)</button>
+              <p class="card-desc">End the current tournament and return to setup screen.</p>
+              <button id="btn-reset-tournament" class="btn btn-danger btn-block">New Game Setup</button>
             </div>
           </div>
         </main>

@@ -81,6 +81,7 @@ function generateDefaultLevels(settings) {
 }
 
 const defaultSettings = {
+  startingBigBlinds: 100,
   startingStack: 500,
   buyIn: 20,
   rebuyAmount: 20,
@@ -121,7 +122,8 @@ let state = {
     isRunning: false,
     lastUpdated: 0
   },
-  history: []
+  history: [],
+  isStarted: false
 };
 
 // Generate default levels on boot
@@ -145,6 +147,13 @@ if (fs.existsSync(STATE_FILE)) {
       if (loaded.settings.autoCalculateChips === undefined) {
         loaded.settings.autoCalculateChips = defaultSettings.autoCalculateChips;
       }
+      if (loaded.settings.startingBigBlinds === undefined) {
+        loaded.settings.startingBigBlinds = defaultSettings.startingBigBlinds;
+      }
+    }
+    
+    if (loaded.isStarted === undefined) {
+      loaded.isStarted = (loaded.players && loaded.players.length > 0);
     }
     
     // Merge loaded state into in-memory state
@@ -445,6 +454,24 @@ wss.on('connection', (ws) => {
           state.levels = generateDefaultLevels(state.settings);
           state.timer.remainingSeconds = state.levels[0].duration;
           state.timer.lastUpdated = Date.now();
+          state.isStarted = false;
+          broadcastState();
+          saveState();
+          break;
+
+        case 'START_TOURNAMENT':
+          state.settings = { ...state.settings, ...action.settings };
+          if (action.levels && action.levels.length > 0) {
+            state.levels = action.levels;
+          } else {
+            state.levels = generateDefaultLevels(state.settings);
+          }
+          state.players = [];
+          state.currentLevelIndex = 0;
+          state.timer.isRunning = false;
+          state.timer.remainingSeconds = state.levels[0].duration;
+          state.timer.lastUpdated = Date.now();
+          state.isStarted = true;
           broadcastState();
           saveState();
           break;

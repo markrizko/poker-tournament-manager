@@ -6,6 +6,15 @@ let localTimerInterval = null;
 let visualRemainingSeconds = 0;
 let lastLevelIndex = -1;
 
+// Wizard local state
+let setupChipInventory = [];
+let setupActiveChips = [];
+let setupGeneratedLevels = [];
+let setupStartingStack = 10000;
+let setupPayoutPercentages = [];
+let setupWizardInitialized = false;
+let currentWizardStep = 1;
+
 // Web Audio API Context
 let audioCtx = null;
 
@@ -46,7 +55,11 @@ function setupRouting() {
     showScreen('tv-screen');
     initAudio();
   } else if (hash === '#admin') {
-    showScreen('admin-screen');
+    if (state && !state.isStarted) {
+      showScreen('setup-screen');
+    } else {
+      showScreen('admin-screen');
+    }
     initAudio();
   } else {
     showScreen('welcome-screen');
@@ -59,11 +72,16 @@ function setupRouting() {
       showScreen('tv-screen');
       initAudio();
     } else if (newHash === '#admin') {
-      showScreen('admin-screen');
+      if (state && !state.isStarted) {
+        showScreen('setup-screen');
+      } else {
+        showScreen('admin-screen');
+      }
       initAudio();
     } else {
       showScreen('welcome-screen');
     }
+    renderActiveScreen();
   });
 
   // Welcome page buttons
@@ -74,6 +92,9 @@ function setupRouting() {
     window.location.hash = 'admin';
   });
   document.getElementById('btn-admin-home').addEventListener('click', () => {
+    window.location.hash = '';
+  });
+  document.getElementById('btn-setup-home').addEventListener('click', () => {
     window.location.hash = '';
   });
 }
@@ -174,7 +195,17 @@ function initWS() {
     const message = JSON.parse(event.data);
     
     if (message.type === 'SYNC') {
+      const prevIsStarted = state ? state.isStarted : null;
       state = message.state;
+      
+      // Initialize setup wizard if transitioned to setup mode
+      if (!state.isStarted && (prevIsStarted === true || !setupWizardInitialized)) {
+        initializeWizardInputs();
+        setupWizardInitialized = true;
+      }
+      if (state.isStarted) {
+        setupWizardInitialized = false;
+      }
       
       // Update pairing info on welcome screen
       updateWelcomeScreen(message.qrCode, message.localIPs, message.port);
@@ -188,6 +219,20 @@ function initWS() {
         triggerFlashAlert();
       }
       lastLevelIndex = state.currentLevelIndex;
+
+      // Dynamic screen routing on sync
+      const hash = window.location.hash;
+      if (hash === '#admin') {
+        if (state.isStarted) {
+          showScreen('admin-screen');
+        } else {
+          showScreen('setup-screen');
+        }
+      } else if (hash === '#tv') {
+        showScreen('tv-screen');
+      } else {
+        showScreen('welcome-screen');
+      }
 
       // Render respective screen
       renderActiveScreen();
@@ -353,7 +398,11 @@ function renderActiveScreen() {
   if (hash === '#tv') {
     renderTVScreen();
   } else if (hash === '#admin') {
-    renderAdminScreen();
+    if (state.isStarted) {
+      renderAdminScreen();
+    } else {
+      renderSetupScreen();
+    }
   }
 }
 
@@ -562,8 +611,34 @@ function renderAdminPlayersTab() {
   const avgStack = calculateAverageStack(activePlayers);
 
   document.getElementById('admin-qs-remaining').innerText = `${activePlayers} / ${totalPlayers}`;
-  document.getElementById('admin-qs-prize').innerText = `$${prizePool}`;
+  document.getElementById('admin-qs-prize').innerText = `${prizePool}`;
   document.getElementById('admin-qs-avg').innerText = avgStack.toLocaleString();
+
+  // Update Buy-in / Rebuy chip breakout card dynamically
+  const breakoutCard = document.getElementById('admin-players-breakout-card');
+  const breakoutChips = document.getElementById('admin-players-breakout-chips');
+  const breakoutStack = document.getElementById('admin-players-breakout-stack');
+  
+  if (breakoutCard && breakoutChips && breakoutStack) {
+    const activeChips = state.settings.activeChips || [];
+    if (activeChips.length > 0) {
+      breakoutCard.style.display = 'block';
+      breakoutStack.innerText = (state.settings.startingStack || 0).toLocaleString() + " Chips";
+      breakoutChips.innerHTML = '';
+      activeChips.forEach(chip => {
+        const pill = document.createElement('div');
+        pill.className = 'breakout-chip-pill';
+        pill.innerHTML = `
+          <div class="breakout-chip-dot" style="background-color: ${chip.hex};"></div>
+          <span>${chip.color} (${chip.value}):</span>
+          <span class="breakout-chip-qty">${chip.qtyPerPlayer}</span>
+        `;
+        breakoutChips.appendChild(pill);
+      });
+    } else {
+      breakoutCard.style.display = 'none';
+    }
+  }
 
   const itemsContainer = document.getElementById('player-list-items');
   itemsContainer.innerHTML = '';
@@ -645,6 +720,15 @@ function renderAdminPlayersTab() {
 }
 
 function renderAdminBlindsTab() {
+  const calcEl = document.getElementById('admin-blinds-calculator');
+  if (calcEl) {
+    if (state.isStarted) {
+      calcEl.classList.add('hidden');
+    } else {
+      calcEl.classList.remove('hidden');
+    }
+  }
+
   const levelsContainer = document.getElementById('admin-levels-list');
   levelsContainer.innerHTML = '';
 
@@ -749,31 +833,65 @@ function renderAdminPayoutsTab() {
 }
 
 function renderAdminSettingsTab() {
-  document.getElementById('settings-starting-stack').value = state.settings.startingStack;
-  document.getElementById('settings-buyin').value = state.settings.buyIn;
-  document.getElementById('settings-rebuy').value = state.settings.rebuyAmount;
-  document.getElementById('settings-addon').value = state.settings.addonAmount;
+  document.getElementById('settings-starting-stack').value = state.settings.startingStack.toLocaleString() + " Chips";
+  document.getElementById('settings-starting-bbs').value = (state.settings.startingBigBlinds || 100) + " BBs";
+  document.getElementById('settings-buyin').value = "$" + state.settings.buyIn;
+  document.getElementById('settings-rebuy').value = "$" + state.settings.rebuyAmount;
+  document.getElementById('settings-addon').value = "$" + state.settings.addonAmount;
   document.getElementById('settings-bba-start').value = state.settings.bbaStartLevel;
   document.getElementById('settings-auto-advance').value = state.settings.autoAdvance.toString();
   document.getElementById('settings-rebuy-cutoff').value = state.settings.rebuyCutoffLevel || 4;
 
-  // Populate chip color editors
+  // Populate active chip colors breakout as locked read-only items
   const list = document.getElementById('chip-settings-list');
   list.innerHTML = '';
 
-  const inventory = state.settings.chipInventory || [];
-  inventory.forEach((chip, idx) => {
-    const div = document.createElement('div');
-    div.className = 'chip-setting-item';
-    div.innerHTML = `
-      <div class="chip-pill" style="background-color: ${chip.hex};"></div>
-      <input type="text" class="chip-edit-color" data-index="${idx}" value="${chip.color}" style="width: 120px;" title="Color Name">
-      <input type="number" class="chip-edit-value" data-index="${idx}" value="${chip.value}" style="width: 70px;" title="Denomination Value">
-      <input type="number" class="chip-edit-qty" data-index="${idx}" value="${chip.qty}" style="width: 70px;" title="Quantity Owned"> Qty
-      <input type="color" class="chip-edit-hex" data-index="${idx}" value="${chip.hex}">
-    `;
-    list.appendChild(div);
-  });
+  const activeChips = state.settings.activeChips || [];
+  if (activeChips.length > 0) {
+    activeChips.forEach(chip => {
+      const div = document.createElement('div');
+      div.className = 'chip-setting-item locked-chip-item';
+      div.style.background = 'rgba(255, 255, 255, 0.01)';
+      div.style.borderLeft = `4px solid ${chip.hex}`;
+      div.style.padding = '8px 12px';
+      div.style.borderRadius = '6px';
+      div.style.display = 'flex';
+      div.style.justifyContent = 'space-between';
+      div.style.alignItems = 'center';
+      
+      div.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="chip-pill" style="background-color: ${chip.hex};"></div>
+          <span style="font-weight: 600;">${chip.color} (${chip.value})</span>
+        </div>
+        <div style="font-weight: 700; color: var(--accent-cyan);">${chip.qtyPerPlayer} chips per player</div>
+      `;
+      list.appendChild(div);
+    });
+  } else {
+    // Fallback: render inventory as locked read-only items
+    const inventory = state.settings.chipInventory || [];
+    inventory.forEach((chip) => {
+      if (chip.qty <= 0) return;
+      const div = document.createElement('div');
+      div.className = 'chip-setting-item locked-chip-item';
+      div.style.borderLeft = `4px solid ${chip.hex}`;
+      div.style.padding = '8px 12px';
+      div.style.borderRadius = '6px';
+      div.style.display = 'flex';
+      div.style.justifyContent = 'space-between';
+      div.style.alignItems = 'center';
+      
+      div.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="chip-pill" style="background-color: ${chip.hex};"></div>
+          <span style="font-weight: 600;">${chip.color} (${chip.value})</span>
+        </div>
+        <div style="font-weight: 700; color: var(--text-secondary);">${chip.qty} total in inventory</div>
+      `;
+      list.appendChild(div);
+    });
+  }
 }
 
 // CALCULATION LOGIC
@@ -1072,65 +1190,154 @@ function setupEventListeners() {
     });
   });
 
-  // GENERAL TOURNAMENT SETTINGS SAVE
+  // GENERAL TOURNAMENT SETTINGS SAVE (LIVE SETTINGS ONLY)
   document.getElementById('btn-save-settings').addEventListener('click', () => {
-    const startingStack = Math.max(1, parseInt(document.getElementById('settings-starting-stack').value, 10) || 10000);
-    const buyIn = Math.max(0, parseInt(document.getElementById('settings-buyin').value, 10) || 0);
-    const rebuyAmount = Math.max(0, parseInt(document.getElementById('settings-rebuy').value, 10) || 0);
-    const addonAmount = Math.max(0, parseInt(document.getElementById('settings-addon').value, 10) || 0);
     const bbaStartLevel = Math.max(1, parseInt(document.getElementById('settings-bba-start').value, 10) || 1);
     const rebuyCutoffLevel = Math.max(1, parseInt(document.getElementById('settings-rebuy-cutoff').value, 10) || 4);
     const autoAdvance = document.getElementById('settings-auto-advance').value === 'true';
 
     sendAction('UPDATE_SETTINGS', {
       settings: {
-        startingStack,
-        buyIn,
-        rebuyAmount,
-        addonAmount,
         bbaStartLevel,
         rebuyCutoffLevel,
         autoAdvance
       }
     });
-    alert('Settings updated and synced!');
+    alert('Live settings updated and synced!');
   });
 
-  // CHIP COLORS SAVE (INVENTORY)
-  const chipListEl = document.getElementById('chip-settings-list');
-  
-  // Auto-calculate checkbox change handler
-  const autoChipsCheck = document.getElementById('calc-auto-chips');
-  if (autoChipsCheck) {
-    const toggleInputs = () => {
-      const displayMode = autoChipsCheck.checked ? 'none' : 'flex';
-      document.getElementById('group-calc-starting-stack').style.display = displayMode;
-      document.getElementById('group-calc-smallest-chip').style.display = displayMode;
-    };
-    autoChipsCheck.addEventListener('change', toggleInputs);
-    // Initial call
-    setTimeout(toggleInputs, 200);
-  }
-
-  document.getElementById('btn-save-chip-colors').addEventListener('click', () => {
-    const chipInventory = [];
-    chipListEl.querySelectorAll('.chip-setting-item').forEach((item, idx) => {
-      const color = item.querySelector('.chip-edit-color').value.trim() || `Chip ${idx + 1}`;
-      const value = Math.max(1, parseInt(item.querySelector('.chip-edit-value').value, 10) || 1);
-      const qty = Math.max(0, parseInt(item.querySelector('.chip-edit-qty').value, 10) || 0);
-      const hex = item.querySelector('.chip-edit-hex').value;
-      chipInventory.push({ color, value, qty, hex });
+  // SAVE SETUP CHIP INVENTORY
+  document.getElementById('btn-save-setup-inventory').addEventListener('click', () => {
+    sendAction('UPDATE_SETTINGS', {
+      settings: {
+        chipInventory: setupChipInventory
+      }
     });
-    // Sort inventory by value
-    chipInventory.sort((a, b) => a.value - b.value);
-    sendAction('UPDATE_SETTINGS', { settings: { chipInventory } });
-    alert('Chip inventory saved and updated!');
+    alert('Chip inventory configuration saved successfully to the server!');
   });
 
-  // Automatically sync color picker and settings pill if color name matches standard colors
-  chipListEl.addEventListener('input', (e) => {
+  // RESET TOURNAMENT
+  document.getElementById('btn-reset-tournament').addEventListener('click', () => {
+    if (confirm('CRITICAL WARNING: This will completely wipe all player registrations, rebuys, and restore the default blinds structure. Are you absolutely sure?')) {
+      sendAction('RESET_TOURNAMENT');
+    }
+  });
+
+  // SETUP WIZARD EVENT LISTENERS
+  document.querySelectorAll('.wizard-step').forEach(stepEl => {
+    stepEl.addEventListener('click', (e) => {
+      const stepNum = parseInt(e.currentTarget.getAttribute('data-step'), 10);
+      if (!isNaN(stepNum) && stepNum < currentWizardStep) {
+        goToWizardStep(stepNum);
+      }
+    });
+  });
+
+  document.getElementById('btn-wizard-prev').addEventListener('click', () => {
+    goToWizardStep(currentWizardStep - 1);
+  });
+
+  document.getElementById('btn-wizard-next').addEventListener('click', () => {
+    goToWizardStep(currentWizardStep + 1);
+  });
+
+  document.getElementById('btn-wizard-launch').addEventListener('click', () => {
+    const sum = setupPayoutPercentages.reduce((a, b) => a + b, 0);
+    if (sum !== 100) {
+      alert(`Payout percentages must sum up to exactly 100%. Current sum: ${sum}%. Use 'Auto-Balance' to normalise it.`);
+      return;
+    }
+
+    const buyIn = Math.max(0, parseInt(document.getElementById('setup-buyin').value, 10) || 0);
+    const rebuyAmount = Math.max(0, parseInt(document.getElementById('setup-rebuy').value, 10) || 0);
+    const addonAmount = Math.max(0, parseInt(document.getElementById('setup-addon').value, 10) || 0);
+    
+    const lvlDur = Math.max(5, parseInt(document.getElementById('setup-level-dur').value, 10) || 15);
+    const breakDur = Math.max(5, parseInt(document.getElementById('setup-break-dur').value, 10) || 10);
+    const breakInterval = Math.max(1, parseInt(document.getElementById('setup-break-interval').value, 10) || 4);
+    
+    const bbaStartLevel = parseInt(document.getElementById('setup-bba-start').value, 10) || 4;
+    const rebuyCutoffLevel = parseInt(document.getElementById('setup-rebuy-cutoff').value, 10) || 4;
+    const autoAdvance = document.getElementById('setup-auto-advance').value === 'true';
+    const placesPaid = parseInt(document.getElementById('setup-places-paid').value, 10) || 3;
+    const startingBigBlinds = parseInt(document.getElementById('setup-starting-bbs').value, 10) || 100;
+
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+
+    const launchSettings = {
+      buyIn,
+      rebuyAmount,
+      addonAmount,
+      startingStack: setupStartingStack,
+      startingBigBlinds,
+      levelDuration: lvlDur,
+      breakDuration: breakDur,
+      breakInterval,
+      bbaStartLevel,
+      rebuyCutoffLevel,
+      autoAdvance,
+      payoutCount: placesPaid,
+      payoutPercentages: setupPayoutPercentages,
+      chipInventory: setupChipInventory,
+      activeChips: setupActiveChips,
+      autoCalculateChips: document.getElementById('setup-auto-chips').checked
+    };
+
+    sendAction('START_TOURNAMENT', {
+      settings: launchSettings,
+      levels: setupGeneratedLevels
+    });
+  });
+
+  document.getElementById('setup-auto-chips').addEventListener('change', (e) => {
+    const showManual = !e.target.checked;
+    document.getElementById('setup-manual-chips-group').style.display = showManual ? 'grid' : 'none';
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+
+  document.getElementById('setup-starting-bbs').addEventListener('input', () => {
+    const autoChips = document.getElementById('setup-auto-chips').checked;
+    if (!autoChips) {
+      const bbs = Math.max(20, parseInt(document.getElementById('setup-starting-bbs').value, 10) || 100);
+      const smallest = parseInt(document.getElementById('setup-smallest-chip').value, 10) || 25;
+      document.getElementById('setup-starting-stack').value = bbs * 2 * smallest;
+    }
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+
+  document.getElementById('setup-starting-stack').addEventListener('input', () => {
+    const autoChips = document.getElementById('setup-auto-chips').checked;
+    if (!autoChips) {
+      const stack = Math.max(100, parseInt(document.getElementById('setup-starting-stack').value, 10) || 10000);
+      const smallest = parseInt(document.getElementById('setup-smallest-chip').value, 10) || 25;
+      document.getElementById('setup-starting-bbs').value = Math.round(stack / (2 * smallest));
+    }
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+
+  document.getElementById('setup-smallest-chip').addEventListener('change', () => {
+    const autoChips = document.getElementById('setup-auto-chips').checked;
+    if (!autoChips) {
+      const stack = Math.max(100, parseInt(document.getElementById('setup-starting-stack').value, 10) || 10000);
+      const smallest = parseInt(document.getElementById('setup-smallest-chip').value, 10) || 25;
+      document.getElementById('setup-starting-bbs').value = Math.round(stack / (2 * smallest));
+    }
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+
+  const setupChipListEl = document.getElementById('setup-chip-inventory-list');
+  setupChipListEl.addEventListener('input', (e) => {
     const target = e.target;
-    if (target.classList.contains('chip-edit-color')) {
+    const idx = parseInt(target.getAttribute('data-index'), 10);
+    if (isNaN(idx)) return;
+
+    if (target.classList.contains('setup-chip-color')) {
+      setupChipInventory[idx].color = target.value.trim();
       const name = target.value.trim().toLowerCase();
       const COLOR_MAP = {
         'white': '#ffffff',
@@ -1151,23 +1358,88 @@ function setupEventListeners() {
       };
       const hex = COLOR_MAP[name];
       if (hex) {
-        const hexInput = target.parentElement.querySelector('.chip-edit-hex');
-        const pill = target.parentElement.querySelector('.chip-pill');
-        if (hexInput) hexInput.value = hex;
-        if (pill) pill.style.backgroundColor = hex;
+        setupChipInventory[idx].hex = hex;
+        target.parentElement.querySelector('.setup-chip-hex').value = hex;
+        target.parentElement.querySelector('.chip-pill').style.backgroundColor = hex;
       }
+    } else if (target.classList.contains('setup-chip-value')) {
+      setupChipInventory[idx].value = Math.max(1, parseInt(target.value, 10) || 1);
+    } else if (target.classList.contains('setup-chip-qty')) {
+      setupChipInventory[idx].qty = Math.max(0, parseInt(target.value, 10) || 0);
+    } else if (target.classList.contains('setup-chip-hex')) {
+      setupChipInventory[idx].hex = target.value;
+      target.parentElement.querySelector('.chip-pill').style.backgroundColor = target.value;
     }
-    else if (target.classList.contains('chip-edit-hex')) {
-      const pill = target.parentElement.querySelector('.chip-pill');
-      if (pill) pill.style.backgroundColor = target.value;
-    }
+
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
   });
 
-  // RESET TOURNAMENT
-  document.getElementById('btn-reset-tournament').addEventListener('click', () => {
-    if (confirm('CRITICAL WARNING: This will completely wipe all player registrations, rebuys, and restore the default blinds structure. Are you absolutely sure?')) {
-      sendAction('RESET_TOURNAMENT');
+  document.getElementById('setup-est-players').addEventListener('input', () => {
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+  document.getElementById('setup-expected-rebuys').addEventListener('input', () => {
+    runSetupChipSolver();
+    runSetupBlindsCalculator();
+  });
+  document.getElementById('setup-playtime').addEventListener('input', () => runSetupBlindsCalculator());
+  document.getElementById('setup-level-dur').addEventListener('input', () => runSetupBlindsCalculator());
+  document.getElementById('setup-end-bb-pct').addEventListener('input', () => runSetupBlindsCalculator());
+  
+  document.getElementById('setup-add-breaks').addEventListener('change', (e) => {
+    document.getElementById('setup-break-options-group').style.display = e.target.checked ? 'grid' : 'none';
+    runSetupBlindsCalculator();
+  });
+  document.getElementById('setup-break-interval').addEventListener('input', () => runSetupBlindsCalculator());
+  document.getElementById('setup-break-dur').addEventListener('input', () => runSetupBlindsCalculator());
+
+  document.getElementById('setup-bba-start').addEventListener('input', () => runSetupBlindsCalculator());
+
+  const setupPayoutListEl = document.getElementById('setup-payout-editor-list');
+  setupPayoutListEl.addEventListener('input', (e) => {
+    const target = e.target;
+    const idx = parseInt(target.getAttribute('data-index'), 10);
+    if (isNaN(idx)) return;
+    
+    const val = Math.max(0, Math.min(100, parseInt(target.value, 10) || 0));
+    
+    if (target.classList.contains('setup-payout-slider')) {
+      target.nextElementSibling.value = val;
+    } else if (target.classList.contains('setup-payout-pct-input')) {
+      target.previousElementSibling.value = val;
     }
+    
+    setupPayoutPercentages[idx] = val;
+    
+    const sum = setupPayoutPercentages.reduce((a, b) => a + b, 0);
+    const badge = document.getElementById('setup-payout-sum-badge');
+    if (badge) {
+      badge.innerText = `Sum: ${sum}%`;
+      badge.className = (sum === 100) ? 'badge bg-success' : 'badge bg-danger';
+    }
+    target.closest('.payout-edit-row').querySelector('.payout-row-header span:last-child').innerText = `${val}%`;
+  });
+
+  setupPayoutListEl.addEventListener('change', (e) => {
+    const target = e.target;
+    const idx = parseInt(target.getAttribute('data-index'), 10);
+    if (isNaN(idx)) return;
+    
+    const val = Math.max(0, Math.min(100, parseInt(target.value, 10) || 0));
+    setupPayoutPercentages[idx] = val;
+    renderSetupPayouts();
+  });
+
+  document.getElementById('setup-places-paid').addEventListener('change', () => {
+    renderSetupPayouts();
+  });
+
+  document.getElementById('btn-setup-autobalance').addEventListener('click', () => {
+    const count = Math.min(10, Math.max(1, parseInt(document.getElementById('setup-places-paid').value, 10) || 3));
+    const preset = PAYOUT_PRESETS[count] || [100];
+    setupPayoutPercentages = [...preset];
+    renderSetupPayouts();
   });
 }
 
@@ -1176,219 +1448,7 @@ function calculateChipBreakout(numPlayers, expectedRebuys) {
   if (!state || !state.settings.chipInventory || state.settings.chipInventory.length === 0) {
     return { success: false, error: 'No chip inventory defined.' };
   }
-
-  // Get active sorted inventory (only items with qty > 0)
-  const inv = state.settings.chipInventory.filter(item => item.qty > 0).sort((a, b) => a.value - b.value);
-  if (inv.length < 3) {
-    return { success: false, error: 'Need at least 3 unique chip colors with quantities in inventory.' };
-  }
-
-  const numP = numPlayers;
-  const reb = expectedRebuys;
-  
-  let bestCandidate = null;
-  let bestScore = -Infinity;
-
-  // Helper to check if a stack value is a clean multiple
-  const isCleanValue = (val) => {
-    if (val >= 1000) return val % 500 === 0 || val % 200 === 0;
-    if (val >= 100) return val % 50 === 0 || val % 100 === 0;
-    if (val >= 10) return val % 5 === 0;
-    return true;
-  };
-
-  // 1. Try combinations of 3 denominations
-  for (let i = 0; i < inv.length; i++) {
-    for (let j = i + 1; j < inv.length; j++) {
-      for (let k = j + 1; k < inv.length; k++) {
-        const denoms = [inv[i], inv[j], inv[k]];
-        
-        // Iterate over chip quantities per player
-        // q1: 4 to 12
-        // q2: 4 to 10
-        // q3: 1 to 6
-        for (let q1 = 4; q1 <= 12; q1++) {
-          for (let q2 = 4; q2 <= 10; q2++) {
-            for (let q3 = 1; q3 <= 6; q3++) {
-              
-              // Check quantities fit within inventory
-              if (numP * q1 > denoms[0].qty) continue;
-              if (numP * q2 > denoms[1].qty) continue;
-              if (numP * q3 > denoms[2].qty) continue;
-
-              const stackValue = q1 * denoms[0].value + q2 * denoms[1].value + q3 * denoms[2].value;
-              if (!isCleanValue(stackValue)) continue;
-
-              // Check if remaining total value in bank is enough for expected rebuys
-              const remVal = (denoms[0].qty - numP * q1) * denoms[0].value +
-                             (denoms[1].qty - numP * q2) * denoms[1].value +
-                             (denoms[2].qty - numP * q3) * denoms[2].value;
-              const totalRebuyValueNeeded = numP * reb * stackValue;
-              if (remVal < totalRebuyValueNeeded) continue;
-
-              // Calculate metrics for scoring
-              const depth = stackValue / (denoms[0].value * 2);
-              const totalChips = q1 + q2 + q3;
-
-              // Score calculation
-              let score = 0;
-
-              // Depth score (prefer 50 - 100 BBs)
-              if (depth >= 50 && depth <= 120) {
-                score += 150;
-              } else if (depth >= 40 && depth < 50) {
-                score += 80;
-              } else if (depth >= 30 && depth < 40) {
-                score += 40;
-              } else if (depth > 120) {
-                score += 30; 
-              } else {
-                score -= 100;
-              }
-
-              // Chip count score (ideal 12 - 18 chips per player)
-              if (totalChips >= 12 && totalChips <= 18) {
-                score += 100;
-              } else {
-                score -= Math.abs(totalChips - 15) * 15;
-              }
-
-              // Smallest chip reserve in bank (prefer leaving >= 15% in the bank for change)
-              const smallReserve = (denoms[0].qty - numP * q1) / denoms[0].qty;
-              if (smallReserve >= 0.15) {
-                score += 30;
-              } else if (smallReserve < 0.05) {
-                score -= 40;
-              }
-
-              // Value clean factor
-              if (stackValue % 1000 === 0) score += 30;
-              else if (stackValue % 500 === 0) score += 20;
-              else if (stackValue % 100 === 0) score += 10;
-
-              if (score > bestScore) {
-                bestScore = score;
-                bestCandidate = {
-                  denoms,
-                  qtys: [q1, q2, q3],
-                  stackValue
-                };
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // 2. Try combinations of 4 denominations
-  for (let i = 0; i < inv.length; i++) {
-    for (let j = i + 1; j < inv.length; j++) {
-      for (let k = j + 1; k < inv.length; k++) {
-        for (let l = k + 1; l < inv.length; l++) {
-          const denoms = [inv[i], inv[j], inv[k], inv[l]];
-          
-          // q1: 4 to 10
-          // q2: 4 to 8
-          // q3: 2 to 6
-          // q4: 1 to 3
-          for (let q1 = 4; q1 <= 10; q1++) {
-            for (let q2 = 4; q2 <= 8; q2++) {
-              for (let q3 = 2; q3 <= 6; q3++) {
-                for (let q4 = 1; q4 <= 3; q4++) {
-                  
-                  // Check quantities fit
-                  if (numP * q1 > denoms[0].qty) continue;
-                  if (numP * q2 > denoms[1].qty) continue;
-                  if (numP * q3 > denoms[2].qty) continue;
-                  if (numP * q4 > denoms[3].qty) continue;
-
-                  const stackValue = q1 * denoms[0].value + q2 * denoms[1].value + q3 * denoms[2].value + q4 * denoms[3].value;
-                  if (!isCleanValue(stackValue)) continue;
-
-                  const remVal = (denoms[0].qty - numP * q1) * denoms[0].value +
-                                 (denoms[1].qty - numP * q2) * denoms[1].value +
-                                 (denoms[2].qty - numP * q3) * denoms[2].value +
-                                 (denoms[3].qty - numP * q4) * denoms[3].value;
-                  const totalRebuyValueNeeded = numP * reb * stackValue;
-                  if (remVal < totalRebuyValueNeeded) continue;
-
-                  const depth = stackValue / (denoms[0].value * 2);
-                  const totalChips = q1 + q2 + q3 + q4;
-
-                  let score = 0;
-
-                  // BB depth score
-                  if (depth >= 50 && depth <= 120) {
-                    score += 150;
-                  } else if (depth >= 40 && depth < 50) {
-                    score += 80;
-                  } else if (depth >= 30 && depth < 40) {
-                    score += 40;
-                  } else {
-                    score -= 100;
-                  }
-
-                  // Chip count score (ideal 14 - 22 chips)
-                  if (totalChips >= 14 && totalChips <= 22) {
-                    score += 100;
-                  } else {
-                    score -= Math.abs(totalChips - 18) * 15;
-                  }
-
-                  // Smallest chip reserve
-                  const smallReserve = (denoms[0].qty - numP * q1) / denoms[0].qty;
-                  if (smallReserve >= 0.15) {
-                    score += 30;
-                  } else if (smallReserve < 0.05) {
-                    score -= 40;
-                  }
-
-                  // Value clean factor
-                  if (stackValue % 1000 === 0) score += 30;
-                  else if (stackValue % 500 === 0) score += 20;
-                  else if (stackValue % 100 === 0) score += 10;
-
-                  if (stackValue >= 1000) score += 20; // 4 denoms is great for >= 1000 stacks
-
-                  if (score > bestScore) {
-                    bestScore = score;
-                    bestCandidate = {
-                      denoms,
-                      qtys: [q1, q2, q3, q4],
-                      stackValue
-                    };
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if (!bestCandidate) {
-    return { 
-      success: false, 
-      error: `No valid chip breakout found for ${numP} players and ${reb} rebuys. Try reducing players/rebuys in your settings.` 
-    };
-  }
-
-  // Format active chips
-  const activeChips = bestCandidate.denoms.map((denom, idx) => ({
-    value: denom.value,
-    qtyPerPlayer: bestCandidate.qtys[idx],
-    color: denom.color,
-    hex: denom.hex
-  }));
-
-  return {
-    success: true,
-    startingStack: bestCandidate.stackValue,
-    activeChips,
-    smallestChipValue: bestCandidate.denoms[0].value
-  };
+  return calculateChipBreakoutForInventory(state.settings.chipInventory, numPlayers, expectedRebuys);
 }
 
 // THE LEVEL CALCULATOR MATH ENGINE
@@ -1586,6 +1646,8 @@ function renderBreakoutSummary(breakout, numP, expectedRebuys) {
   details.innerHTML = html;
 }
 
+
+
 function findClosestIndex(targetValue) {
   let closestIndex = 0;
   let minDiff = Infinity;
@@ -1597,4 +1659,654 @@ function findClosestIndex(targetValue) {
     }
   }
   return closestIndex;
+}
+
+// SETUP WIZARD VIEW HELPERS & DYNAMIC CALCULATORS
+function renderSetupScreen() {
+  goToWizardStep(currentWizardStep);
+}
+
+function goToWizardStep(stepNum) {
+  if (stepNum < 1 || stepNum > 4) return;
+  currentWizardStep = stepNum;
+  
+  document.querySelectorAll('.wizard-panel').forEach((panel, idx) => {
+    panel.classList.toggle('active', (idx + 1) === stepNum);
+  });
+  
+  document.querySelectorAll('.wizard-step').forEach((step, idx) => {
+    const stepVal = idx + 1;
+    step.classList.toggle('active', stepVal === stepNum);
+    step.classList.toggle('completed', stepVal < stepNum);
+  });
+  
+  document.getElementById('btn-wizard-prev').style.visibility = stepNum === 1 ? 'hidden' : 'visible';
+  if (stepNum === 4) {
+    document.getElementById('btn-wizard-next').style.display = 'none';
+    document.getElementById('btn-wizard-launch').style.display = 'inline-flex';
+  } else {
+    document.getElementById('btn-wizard-next').style.display = 'inline-flex';
+    document.getElementById('btn-wizard-launch').style.display = 'none';
+  }
+
+  renderWizardStepContent(stepNum);
+}
+
+function renderWizardStepContent(stepNum) {
+  if (stepNum === 2) {
+    renderSetupChipInventory();
+    runSetupChipSolver();
+  } else if (stepNum === 3) {
+    runSetupBlindsCalculator();
+  } else if (stepNum === 4) {
+    renderSetupPayouts();
+  }
+}
+
+function initializeWizardInputs() {
+  if (!state || !state.settings) return;
+  const s = state.settings;
+
+  // Step 1: Stakes
+  document.getElementById('setup-buyin').value = s.buyIn;
+  document.getElementById('setup-rebuy').value = s.rebuyAmount;
+  document.getElementById('setup-addon').value = s.addonAmount;
+  document.getElementById('setup-est-players').value = 8;
+  document.getElementById('setup-expected-rebuys').value = 0.5;
+
+  // Step 2: Chips
+  document.getElementById('setup-auto-chips').checked = s.autoCalculateChips !== false;
+  document.getElementById('setup-starting-stack').value = s.startingStack || 10000;
+  document.getElementById('setup-starting-bbs').value = s.startingBigBlinds || 100;
+  document.getElementById('setup-smallest-chip').value = 25;
+  document.getElementById('setup-manual-chips-group').style.display = s.autoCalculateChips !== false ? 'none' : 'grid';
+  
+  setupChipInventory = JSON.parse(JSON.stringify(s.chipInventory || []));
+  setupActiveChips = JSON.parse(JSON.stringify(s.activeChips || []));
+
+  // Step 3: Blinds
+  document.getElementById('setup-playtime').value = 180;
+  document.getElementById('setup-level-dur').value = s.levelDuration || 15;
+  document.getElementById('setup-end-bb-pct').value = 6;
+  document.getElementById('setup-add-breaks').checked = true;
+  document.getElementById('setup-break-options-group').style.display = 'grid';
+  document.getElementById('setup-break-interval').value = s.breakInterval || 4;
+  document.getElementById('setup-break-dur').value = s.breakDuration || 10;
+
+  // Step 4: Policies
+  document.getElementById('setup-bba-start').value = s.bbaStartLevel || 4;
+  document.getElementById('setup-rebuy-cutoff').value = s.rebuyCutoffLevel || 4;
+  document.getElementById('setup-auto-advance').value = s.autoAdvance ? 'true' : 'false';
+  document.getElementById('setup-places-paid').value = s.payoutCount || 3;
+  setupPayoutPercentages = [...(s.payoutPercentages || [50, 30, 20])];
+
+  currentWizardStep = 1;
+}
+
+function renderSetupChipInventory() {
+  const container = document.getElementById('setup-chip-inventory-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  setupChipInventory.forEach((chip, idx) => {
+    const div = document.createElement('div');
+    div.className = 'chip-setting-item';
+    div.innerHTML = `
+      <div class="chip-pill" style="background-color: ${chip.hex};"></div>
+      <input type="text" class="chip-edit-color setup-chip-color" data-index="${idx}" value="${chip.color}" style="width: 120px;" title="Color Name">
+      <input type="number" class="chip-edit-value setup-chip-value" data-index="${idx}" value="${chip.value}" style="width: 70px;" title="Denomination Value">
+      <input type="number" class="chip-edit-qty setup-chip-qty" data-index="${idx}" value="${chip.qty}" style="width: 70px;" title="Quantity Owned"> Qty
+      <input type="color" class="chip-edit-hex setup-chip-hex" data-index="${idx}" value="${chip.hex}">
+    `;
+    container.appendChild(div);
+  });
+}
+
+function runSetupChipSolver() {
+  const autoChips = document.getElementById('setup-auto-chips').checked;
+  const numP = Math.max(2, parseInt(document.getElementById('setup-est-players').value, 10) || 8);
+  const reb = Math.max(0, parseFloat(document.getElementById('setup-expected-rebuys').value) || 0.5);
+  
+  const previewCard = document.getElementById('setup-breakout-preview');
+  const detailsDiv = document.getElementById('setup-breakout-details');
+  if (!previewCard || !detailsDiv) return;
+
+  if (!autoChips) {
+    previewCard.style.display = 'none';
+    setupStartingStack = Math.max(100, parseInt(document.getElementById('setup-starting-stack').value, 10) || 10000);
+    
+    const inv = setupChipInventory.filter(item => item.qty > 0).sort((a, b) => a.value - b.value);
+    const smallestVal = parseInt(document.getElementById('setup-smallest-chip').value, 10) || 25;
+    
+    const matchChips = inv.filter(item => item.value >= smallestVal);
+    setupActiveChips = matchChips.slice(0, 4).map(c => ({
+      value: c.value,
+      qtyPerPlayer: Math.max(1, Math.round(setupStartingStack / (c.value * 5))),
+      color: c.color,
+      hex: c.hex
+    }));
+    return;
+  }
+
+  const breakout = calculateChipBreakoutForInventory(setupChipInventory, numP, reb);
+  if (!breakout.success) {
+    detailsDiv.innerHTML = `<div class="text-danger" style="font-weight:600; font-size: 0.9rem;">${breakout.error}</div>`;
+    previewCard.style.display = 'block';
+    setupActiveChips = [];
+    return;
+  }
+
+  setupStartingStack = breakout.startingStack;
+  setupActiveChips = breakout.activeChips;
+  previewCard.style.display = 'block';
+
+  const finalBBs = breakout.startingStack / (2 * breakout.smallestChipValue);
+
+  let html = `
+    <div style="font-size: 1.15rem; font-weight: 800; color: var(--accent-green); margin-bottom: 10px;">
+      Solver Stack Size: ${breakout.startingStack.toLocaleString()} Chips (${finalBBs} BBs)
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600;">PER PLAYER STACK CUTOUT:</div>
+    <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px;">
+  `;
+
+  breakout.activeChips.forEach(chip => {
+    const totalUsed = numP * chip.qtyPerPlayer;
+    html += `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.02); padding: 6px 10px; border-radius: 6px; border-left: 4px solid ${chip.hex};">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${chip.hex}"></div>
+          <span>${chip.color} (${chip.value})</span>
+        </div>
+        <div style="font-weight: 700; color: var(--text-primary);">
+          ${chip.qtyPerPlayer} chips <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(uses ${totalUsed})</span>
+        </div>
+      </div>
+    `;
+  });
+
+  html += `
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 5px; font-weight: 600;">BANK RESERVE (Rebuys & Change):</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+  `;
+
+  setupChipInventory.forEach(invItem => {
+    const activeMatch = breakout.activeChips.find(ac => ac.value === invItem.value);
+    const qtyUsed = activeMatch ? (numP * activeMatch.qtyPerPlayer) : 0;
+    const qtyLeft = invItem.qty - qtyUsed;
+    
+    html += `
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; display: flex; align-items: center; gap: 6px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${invItem.hex}"></div>
+        <span>${invItem.color} (${invItem.value}): <strong>${qtyLeft} left</strong></span>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  detailsDiv.innerHTML = html;
+}
+
+function calculateChipBreakoutForInventory(inventory, numPlayers, expectedRebuys, startingBigBlinds) {
+  const startingBBs = startingBigBlinds || 100;
+  if (!inventory || inventory.length === 0) {
+    return { success: false, error: 'No chip inventory defined.' };
+  }
+
+  const inv = inventory.filter(item => item.qty > 0).sort((a, b) => a.value - b.value);
+  if (inv.length < 3) {
+    return { success: false, error: 'Need at least 3 unique chip colors with quantities in inventory.' };
+  }
+
+  const numP = numPlayers;
+  const reb = expectedRebuys;
+  
+  let bestCandidate = null;
+  let bestScore = -Infinity;
+
+  const isCleanValue = (val) => {
+    if (val >= 1000) return val % 500 === 0 || val % 200 === 0;
+    if (val >= 100) return val % 50 === 0 || val % 100 === 0;
+    if (val >= 10) return val % 5 === 0;
+    return true;
+  };
+
+  // Combinations of 3 denominations
+  for (let i = 0; i < inv.length; i++) {
+    for (let j = i + 1; j < inv.length; j++) {
+      for (let k = j + 1; k < inv.length; k++) {
+        const denoms = [inv[i], inv[j], inv[k]];
+        for (let q1 = 4; q1 <= 20; q1++) {
+          for (let q2 = 4; q2 <= 15; q2++) {
+            for (let q3 = 1; q3 <= 10; q3++) {
+              if (numP * q1 > denoms[0].qty) continue;
+              if (numP * q2 > denoms[1].qty) continue;
+              if (numP * q3 > denoms[2].qty) continue;
+
+              const stackValue = q1 * denoms[0].value + q2 * denoms[1].value + q3 * denoms[2].value;
+              if (!isCleanValue(stackValue)) continue;
+
+              const depth = stackValue / (denoms[0].value * 2);
+              const totalChips = q1 + q2 + q3;
+
+              let score = 0;
+              if (depth >= 50 && depth <= 120) {
+                score += 150;
+              } else if (depth >= 40 && depth < 50) {
+                score += 80;
+              } else if (depth >= 30 && depth < 40) {
+                score += 40;
+              } else {
+                score -= 100;
+              }
+
+              if (totalChips >= 12 && totalChips <= 24) {
+                score += 100;
+              } else {
+                score -= Math.abs(totalChips - 18) * 8;
+              }
+
+              const smallReserve = (denoms[0].qty - numP * q1) / denoms[0].qty;
+              if (smallReserve >= 0.15) {
+                score += 30;
+              } else if (smallReserve < 0.05) {
+                score -= 40;
+              }
+
+              if (stackValue % 1000 === 0) score += 30;
+              else if (stackValue % 500 === 0) score += 20;
+              else if (stackValue % 100 === 0) score += 10;
+              if (stackValue >= 1000) score += 20;
+
+              const idealSB = stackValue / 200;
+              const idealBB = stackValue / 100;
+              if (inv.some(item => item.value === idealSB) && !denoms.some(d => d.value === idealSB)) score -= 300;
+              if (inv.some(item => item.value === idealBB) && !denoms.some(d => d.value === idealBB)) score -= 300;
+
+              const firstIdx = inv.findIndex(item => item.value === denoms[0].value);
+              const lastIdx = inv.findIndex(item => item.value === denoms[denoms.length - 1].value);
+              const gap = (lastIdx - firstIdx) - (denoms.length - 1);
+              score -= gap * 40;
+
+              const denomSum = denoms.reduce((sum, d) => sum + d.value, 0);
+              score -= denomSum * 0.15;
+
+              let smallChipBonus = 0;
+              for (let idx = 0; idx < denoms.length; idx++) {
+                const weight = (denoms.length - idx) * 15;
+                smallChipBonus += [q1, q2, q3][idx] * weight;
+              }
+              score += smallChipBonus;
+
+              const candidateBBs = stackValue / (2 * denoms[0].value);
+              const bbDiff = Math.abs(candidateBBs - startingBBs);
+              score -= bbDiff * 80;
+
+              if (score > bestScore) {
+                bestScore = score;
+                bestCandidate = { denoms, qtys: [q1, q2, q3], stackValue };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Combinations of 4 denominations
+  for (let i = 0; i < inv.length; i++) {
+    for (let j = i + 1; j < inv.length; j++) {
+      for (let k = j + 1; k < inv.length; k++) {
+        for (let l = k + 1; l < inv.length; l++) {
+          const denoms = [inv[i], inv[j], inv[k], inv[l]];
+          for (let q1 = 4; q1 <= 20; q1++) {
+            for (let q2 = 4; q2 <= 15; q2++) {
+              for (let q3 = 2; q3 <= 12; q3++) {
+                for (let q4 = 1; q4 <= 8; q4++) {
+                  if (numP * q1 > denoms[0].qty) continue;
+                  if (numP * q2 > denoms[1].qty) continue;
+                  if (numP * q3 > denoms[2].qty) continue;
+                  if (numP * q4 > denoms[3].qty) continue;
+
+                  const stackValue = q1 * denoms[0].value + q2 * denoms[1].value + q3 * denoms[2].value + q4 * denoms[3].value;
+                  if (!isCleanValue(stackValue)) continue;
+
+                  const depth = stackValue / (denoms[0].value * 2);
+                  const totalChips = q1 + q2 + q3 + q4;
+
+                  let score = 0;
+                  if (depth >= 50 && depth <= 120) {
+                    score += 150;
+                  } else if (depth >= 40 && depth < 50) {
+                    score += 80;
+                  } else if (depth >= 30 && depth < 40) {
+                    score += 40;
+                  } else {
+                    score -= 100;
+                  }
+
+                  if (totalChips >= 15 && totalChips <= 30) {
+                    score += 100;
+                  } else {
+                    score -= Math.abs(totalChips - 22) * 8;
+                  }
+
+                  const smallReserve = (denoms[0].qty - numP * q1) / denoms[0].qty;
+                  if (smallReserve >= 0.15) {
+                    score += 30;
+                  } else if (smallReserve < 0.05) {
+                    score -= 40;
+                  }
+
+                  if (stackValue % 1000 === 0) score += 30;
+                  else if (stackValue % 500 === 0) score += 20;
+                  else if (stackValue % 100 === 0) score += 10;
+                  if (stackValue >= 1000) score += 20;
+
+                  const idealSB = stackValue / 200;
+                  const idealBB = stackValue / 100;
+                  if (inv.some(item => item.value === idealSB) && !denoms.some(d => d.value === idealSB)) score -= 300;
+                  if (inv.some(item => item.value === idealBB) && !denoms.some(d => d.value === idealBB)) score -= 300;
+
+                  const firstIdx = inv.findIndex(item => item.value === denoms[0].value);
+                  const lastIdx = inv.findIndex(item => item.value === denoms[denoms.length - 1].value);
+                  const gap = (lastIdx - firstIdx) - (denoms.length - 1);
+                  score -= gap * 40;
+
+                  const denomSum = denoms.reduce((sum, d) => sum + d.value, 0);
+                  score -= denomSum * 0.15;
+
+                  let smallChipBonus = 0;
+                  for (let idx = 0; idx < denoms.length; idx++) {
+                    const weight = (denoms.length - idx) * 15;
+                    smallChipBonus += [q1, q2, q3, q4][idx] * weight;
+                  }
+                  score += smallChipBonus;
+
+                  const candidateBBs = stackValue / (2 * denoms[0].value);
+                  const bbDiff = Math.abs(candidateBBs - startingBBs);
+                  score -= bbDiff * 80;
+
+                  if (score > bestScore) {
+                    bestScore = score;
+                    bestCandidate = { denoms, qtys: [q1, q2, q3, q4], stackValue };
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Combinations of 5 denominations
+  if (inv.length >= 5) {
+    for (let i = 0; i < inv.length; i++) {
+      for (let j = i + 1; j < inv.length; j++) {
+        for (let k = j + 1; k < inv.length; k++) {
+          for (let l = k + 1; l < inv.length; l++) {
+            for (let m = l + 1; m < inv.length; m++) {
+              const denoms = [inv[i], inv[j], inv[k], inv[l], inv[m]];
+              for (let q1 = 4; q1 <= 12; q1++) {
+                for (let q2 = 4; q2 <= 10; q2++) {
+                  for (let q3 = 2; q3 <= 8; q3++) {
+                    for (let q4 = 2; q4 <= 8; q4++) {
+                      for (let q5 = 1; q5 <= 6; q5++) {
+                        if (numP * q1 > denoms[0].qty) continue;
+                        if (numP * q2 > denoms[1].qty) continue;
+                        if (numP * q3 > denoms[2].qty) continue;
+                        if (numP * q4 > denoms[3].qty) continue;
+                        if (numP * q5 > denoms[4].qty) continue;
+
+                        const stackValue = q1 * denoms[0].value + q2 * denoms[1].value + q3 * denoms[2].value + q4 * denoms[3].value + q5 * denoms[4].value;
+                        if (!isCleanValue(stackValue)) continue;
+
+                        const depth = stackValue / (denoms[0].value * 2);
+                        const totalChips = q1 + q2 + q3 + q4 + q5;
+
+                        let score = 0;
+                        if (depth >= 50 && depth <= 120) {
+                          score += 150;
+                        } else if (depth >= 40 && depth < 50) {
+                          score += 80;
+                        } else if (depth >= 30 && depth < 40) {
+                          score += 40;
+                        } else {
+                          score -= 100;
+                        }
+
+                        if (totalChips >= 18 && totalChips <= 35) {
+                          score += 100;
+                        } else {
+                          score -= Math.abs(totalChips - 25) * 8;
+                        }
+
+                        const smallReserve = (denoms[0].qty - numP * q1) / denoms[0].qty;
+                        if (smallReserve >= 0.15) {
+                          score += 30;
+                        } else if (smallReserve < 0.05) {
+                          score -= 40;
+                        }
+
+                        if (stackValue % 1000 === 0) score += 30;
+                        else if (stackValue % 500 === 0) score += 20;
+                        if (stackValue >= 1000) score += 20;
+
+                        const idealSB = stackValue / 200;
+                        const idealBB = stackValue / 100;
+                        if (inv.some(item => item.value === idealSB) && !denoms.some(d => d.value === idealSB)) score -= 300;
+                        if (inv.some(item => item.value === idealBB) && !denoms.some(d => d.value === idealBB)) score -= 300;
+
+                        const firstIdx = inv.findIndex(item => item.value === denoms[0].value);
+                        const lastIdx = inv.findIndex(item => item.value === denoms[denoms.length - 1].value);
+                        const gap = (lastIdx - firstIdx) - (denoms.length - 1);
+                        score -= gap * 40;
+
+                        const denomSum = denoms.reduce((sum, d) => sum + d.value, 0);
+                        score -= denomSum * 0.15;
+
+                        let smallChipBonus = 0;
+                        for (let idx = 0; idx < denoms.length; idx++) {
+                          const weight = (denoms.length - idx) * 15;
+                          smallChipBonus += [q1, q2, q3, q4, q5][idx] * weight;
+                        }
+                        score += smallChipBonus;
+
+                        const candidateBBs = stackValue / (2 * denoms[0].value);
+                        const bbDiff = Math.abs(candidateBBs - startingBBs);
+                        score -= bbDiff * 80;
+
+                        if (score > bestScore) {
+                          bestScore = score;
+                          bestCandidate = { denoms, qtys: [q1, q2, q3, q4, q5], stackValue };
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!bestCandidate) {
+    return { success: false, error: `No valid breakout found for ${numP} players. Reduce players or add chip inventory owned quantities.` };
+  }
+
+  const activeChips = bestCandidate.denoms.map((denom, idx) => ({
+    value: denom.value,
+    qtyPerPlayer: bestCandidate.qtys[idx],
+    color: denom.color,
+    hex: denom.hex
+  }));
+
+  return {
+    success: true,
+    startingStack: bestCandidate.stackValue,
+    activeChips,
+    smallestChipValue: bestCandidate.denoms[0].value
+  };
+}
+
+function runSetupBlindsCalculator() {
+  const playtime = Math.max(30, parseInt(document.getElementById('setup-playtime').value, 10) || 180);
+  const lvlDur = Math.max(5, parseInt(document.getElementById('setup-level-dur').value, 10) || 15);
+  const finalBBPct = (parseFloat(document.getElementById('setup-end-bb-pct').value) || 6) / 100;
+  
+  const addBreaks = document.getElementById('setup-add-breaks').checked;
+  const breakInterval = Math.max(1, parseInt(document.getElementById('setup-break-interval').value, 10) || 4);
+  const breakDur = Math.max(5, parseInt(document.getElementById('setup-break-dur').value, 10) || 10);
+  
+  const estPlayers = Math.max(2, parseInt(document.getElementById('setup-est-players').value, 10) || 8);
+  const avgRebuys = Math.max(0, parseFloat(document.getElementById('setup-expected-rebuys').value) || 0.5);
+  
+  const autoChips = document.getElementById('setup-auto-chips').checked;
+  
+  let startingStack = setupStartingStack;
+  let smallestChip = 25;
+  if (!autoChips) {
+    startingStack = Math.max(100, parseInt(document.getElementById('setup-starting-stack').value, 10) || 10000);
+    smallestChip = parseInt(document.getElementById('setup-smallest-chip').value, 10) || 25;
+  } else {
+    if (setupActiveChips && setupActiveChips.length > 0) {
+      smallestChip = setupActiveChips[0].value;
+    }
+  }
+
+  const totalEntries = estPlayers + (estPlayers * avgRebuys);
+  const totalChips = totalEntries * startingStack;
+  const targetFinalBB = totalChips * finalBBPct;
+  const targetStartBB = smallestChip * 2;
+
+  let numLevels = Math.ceil(playtime / lvlDur);
+  if (addBreaks) {
+    let currentTotalTime = 0;
+    let levelsCount = 0;
+    while (currentTotalTime < playtime) {
+      levelsCount++;
+      currentTotalTime += lvlDur;
+      if (levelsCount % breakInterval === 0) {
+        currentTotalTime += breakDur;
+      }
+    }
+    numLevels = levelsCount;
+  }
+
+  let startIndex = findClosestIndex(targetStartBB);
+  let endIndex = findClosestIndex(targetFinalBB);
+
+  if (endIndex <= startIndex) {
+    endIndex = Math.min(STANDARD_BLINDS.length - 1, startIndex + numLevels);
+  }
+
+  setupGeneratedLevels = [];
+  let levelCounter = 1;
+  const levelDurationSec = lvlDur * 60;
+  const breakDurationSec = breakDur * 60;
+
+  const bbaStartLevel = parseInt(document.getElementById('setup-bba-start').value, 10) || 4;
+
+  for (let i = 0; i < numLevels; i++) {
+    const fraction = numLevels > 1 ? i / (numLevels - 1) : 0;
+    const interpolatedIndex = Math.round(startIndex + (endIndex - startIndex) * fraction);
+    const bb = STANDARD_BLINDS[Math.min(STANDARD_BLINDS.length - 1, interpolatedIndex)];
+    const sb = Math.round(bb / 2);
+    
+    const isBBA = (levelCounter >= bbaStartLevel);
+    const ante = isBBA ? bb : 0;
+
+    setupGeneratedLevels.push({
+      type: 'level',
+      label: `Level ${levelCounter}`,
+      sb: sb,
+      bb: bb,
+      ante: ante,
+      duration: levelDurationSec
+    });
+
+    if (addBreaks && levelCounter % breakInterval === 0 && i < numLevels - 1) {
+      setupGeneratedLevels.push({
+        type: 'break',
+        label: `Break ${Math.floor(levelCounter / breakInterval)}`,
+        duration: breakDurationSec
+      });
+    }
+
+    levelCounter++;
+  }
+
+  const tbody = document.getElementById('setup-levels-preview-list');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+
+  setupGeneratedLevels.forEach((lvl, idx) => {
+    const tr = document.createElement('tr');
+    if (lvl.type === 'break') tr.className = 'break-row';
+    
+    const durationMin = Math.round(lvl.duration / 60);
+
+    if (lvl.type === 'break') {
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><span class="badge">Break</span></td>
+        <td colspan="3" style="text-align: center;">${lvl.label}</td>
+        <td>${durationMin}m</td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>Blinds</td>
+        <td>${lvl.sb}</td>
+        <td>${lvl.bb}</td>
+        <td>${lvl.ante > 0 ? lvl.ante : '-'}</td>
+        <td>${durationMin}m</td>
+      `;
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function renderSetupPayouts() {
+  const placesPaidEl = document.getElementById('setup-places-paid');
+  if (!placesPaidEl) return;
+  const count = Math.min(10, Math.max(1, parseInt(placesPaidEl.value, 10) || 3));
+  placesPaidEl.value = count;
+
+  if (setupPayoutPercentages.length !== count) {
+    const preset = PAYOUT_PRESETS[count] || [100];
+    setupPayoutPercentages = [...preset];
+  }
+
+  const sum = setupPayoutPercentages.reduce((a, b) => a + b, 0);
+  const badge = document.getElementById('setup-payout-sum-badge');
+  if (badge) {
+    badge.innerText = `Sum: ${sum}%`;
+    badge.className = (sum === 100) ? 'badge bg-success' : 'badge bg-danger';
+  }
+
+  const list = document.getElementById('setup-payout-editor-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  for (let i = 0; i < count; i++) {
+    const pct = setupPayoutPercentages[i] || 0;
+    const row = document.createElement('div');
+    row.className = 'payout-edit-row';
+    row.innerHTML = `
+      <div class="payout-row-header">
+        <span>Place ${i + 1}</span>
+        <span>${pct}%</span>
+      </div>
+      <div class="payout-slider-wrapper">
+        <input type="range" class="payout-slider setup-payout-slider" data-index="${i}" min="0" max="100" value="${pct}">
+        <input type="number" class="payout-pct-input setup-payout-pct-input" data-index="${i}" min="0" max="100" value="${pct}">%
+      </div>
+    `;
+    list.appendChild(row);
+  }
 }
