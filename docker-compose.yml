@@ -7,11 +7,11 @@ services:
     container_name: poker-tournament-manager
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "7272:7272"
     environment:
-      # URL to your Gitea repository (e.g. http://192.168.1.100:3000/username/poker-tournament-manager.git)
+      # URL to your Gitea repository (e.g. http://192.168.1.201:3000/markrizko/poker-tournament-manager.git)
       - REPO_URL=http://<GITEA_HOST_OR_IP>:<GITEA_PORT>/<USER>/poker-tournament-manager.git
-      - BRANCH=main
+      - BRANCH=master
       
       # Optional: Gitea credentials if the repository is private
       # - GITEA_USER=your_user
@@ -22,8 +22,8 @@ services:
       # Set your Synology NAS IP so the QR code and LAN links generated on the dashboard point to the NAS
       - HOST_IP=192.168.1.xxx
       
-      - PORT=3000
-      - TZ=America/New_York
+      - PORT=7272
+      - TZ=America/Los_Angeles
     volumes:
       # Persists tournament state, custom blinds, and timer configuration across updates
       - ./data:/data

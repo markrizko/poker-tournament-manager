@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# Trust mounted repository directory to prevent dubious ownership fatal errors
+git config --global --add safe.directory '*'
+
 REPO_URL="${REPO_URL:-}"
 BRANCH="${BRANCH:-main}"
 APP_DIR="/app/repo"
