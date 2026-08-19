@@ -29,3 +29,5 @@ services:
       - ./data:/data
       # Caches cloned git repository between container restarts for fast startup
       - ./repo-cache:/app/repo
+      # Live mounts entrypoint script so updates apply immediately on restart
+      - ./docker-entrypoint.sh:/app/docker-entrypoint.sh
