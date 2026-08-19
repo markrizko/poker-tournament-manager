@@ -102,6 +102,55 @@ Network Access (Use your phone/tablet):
 
 ---
 
+## 🐳 Synology NAS & Docker Deployment
+
+You can host Poker Tournament Manager 24/7 on your Synology NAS (via Container Manager or Docker Compose). On container boot, it will automatically pull the latest source code from your Gitea instance and launch the server.
+
+### 1. Docker Compose Setup
+
+Create a `docker-compose.yml` file (or create a new project in Synology **Container Manager > Project**):
+
+```yaml
+version: '3.8'
+
+services:
+  poker-tournament-manager:
+    build: .
+    image: poker-tournament-manager:latest
+    container_name: poker-tournament-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # URL to your Gitea repository
+      - REPO_URL=http://<GITEA_HOST_OR_IP>:<GITEA_PORT>/<USER>/poker-tournament-manager.git
+      - BRANCH=main
+      
+      # Optional: Credentials if your Gitea repository is private
+      # - GITEA_TOKEN=your_personal_access_token
+      # Or:
+      # - GITEA_USER=username
+      # - GITEA_PASSWORD=password
+
+      # Synology NAS LAN IP (so mobile QR codes point directly to your NAS)
+      - HOST_IP=192.168.1.xxx
+      
+      - PORT=3000
+      - TZ=America/New_York
+    volumes:
+      # Persists tournament data/blinds across container updates
+      - ./data:/data
+      # Caches cloned git repository between container restarts
+      - ./repo-cache:/app/repo
+```
+
+### 2. Updating the Application
+Because the container pulls from Gitea on startup, updating the server when you push changes to your repository is as easy as:
+* In **Synology Container Manager**: Click **Restart** on the container/project.
+* Via CLI / SSH: `docker compose restart`
+
+---
+
 ## 🖥️ WSL2 Network User Notes (NAT Bridging)
 WSL2 runs on a virtual network behind a NAT, which blocks direct Wi-Fi connections from your phone. If you are running the server in WSL2, configure port-forwarding to make the server accessible:
 
@@ -115,3 +164,4 @@ netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 conne
 
 ## 📄 License
 This project is open-source and available under the [MIT License](LICENSE).
+

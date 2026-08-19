@@ -11,7 +11,8 @@ let cachedQrCode = '';
 
 
 const PORT = process.env.PORT || 3000;
-const STATE_FILE = path.join(__dirname, 'state.json');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const STATE_FILE = process.env.STATE_FILE || path.join(DATA_DIR, 'state.json');
 
 const app = express();
 const server = http.createServer(app);
@@ -490,6 +491,12 @@ wss.on('connection', (ws) => {
 function getLocalIPs() {
   const ips = [];
   
+  // Support explicit host IP / domain via environment variable (useful in Docker)
+  const explicitHost = process.env.HOST_IP || process.env.PUBLIC_IP;
+  if (explicitHost && !ips.includes(explicitHost)) {
+    ips.push(explicitHost);
+  }
+
   // 1. If running inside WSL, query the Windows host physical IPs
   if (process.platform === 'linux' && os.release().toLowerCase().includes('microsoft')) {
     try {
